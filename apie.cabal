@@ -1,0 +1,103 @@
+cabal-version: 1.12
+name:           apie
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/mjepronk/apie#readme>
+homepage:       https://github.com/mjepronk/apie#readme
+bug-reports:    https://github.com/mjepronk/apie/issues
+author:         Matthias Pronk
+maintainer:     matthias@remakingthe.world
+copyright:      2020 Matthias Pronk
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    ChangeLog.md
+
+source-repository head
+  type: git
+  location: https://github.com/mjepronk/apie
+
+library
+  exposed-modules:
+      Apie
+  other-modules:
+      Paths_apie
+    , Apie.Internal.Auth
+    , Apie.Internal.Log
+    , Apie.Internal.Store
+    , Apie.Internal.Utils
+    , Apie.ContentStore
+    , Apie.EventLog
+    , Apie.Info
+  hs-source-dirs:
+      src
+  build-depends:
+      base >=4.7 && <5
+    , aeson
+    , rio
+    , cryptonite
+    , filelock
+    , http-types
+    , uuid
+    , wai
+  extensions:
+      NoImplicitPrelude
+    , NamedFieldPuns
+    , OverloadedStrings
+    , TupleSections
+  default-language: Haskell2010
+  ghc-options:
+    -Wall
+    -Wcompat
+    -Widentities
+    -Wincomplete-record-updates
+    -Wincomplete-uni-patterns
+    -Wpartial-fields
+    -Wredundant-constraints
+    -- -Werror
+
+
+executable apie-cgi
+  main-is: CGI.hs
+  other-modules:
+      Paths_apie
+  hs-source-dirs:
+      app
+  build-depends:
+      base >=4.7 && <5
+    , rio
+    , wai-extra
+    , apie
+  default-language: Haskell2010
+  extensions:
+      NoImplicitPrelude
+
+executable apie-server
+  main-is: Server.hs
+  other-modules:
+      Paths_apie
+  hs-source-dirs:
+      app
+  build-depends:
+      base >=4.7 && <5
+    , rio
+    , warp
+    , apie
+  default-language: Haskell2010
+  extensions:
+      NoImplicitPrelude
+    , OverloadedStrings
+
+test-suite apie-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_cms_backend
+  hs-source-dirs:
+      test
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , apie
+  default-language: Haskell2010
