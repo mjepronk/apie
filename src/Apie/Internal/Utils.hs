@@ -3,6 +3,7 @@ module Apie.Internal.Utils
     , jsonHeaders
     , notFound
     , badRequest
+    , okResponse
     , errorResponse
     , version
     )
@@ -10,9 +11,9 @@ where
 
 import RIO
 import qualified RIO.Text as T
-import Network.HTTP.Types (Status, ResponseHeaders, status400, status404)
+import Network.HTTP.Types (Status, ResponseHeaders, status200, status400, status404)
 import Network.Wai (Response, responseLBS)
-import Data.Aeson (Value(..), (.=), object, encode)
+import Data.Aeson (ToJSON, Value(..), (.=), object, encode)
 import Data.Version (showVersion)
 import qualified Paths_apie as Paths
 
@@ -28,6 +29,9 @@ notFound = responseLBS status404 plainHeaders "This path leads nowhere."
 
 badRequest :: Response
 badRequest = responseLBS status400 plainHeaders "Bad request"
+
+okResponse :: ToJSON a => a -> Response
+okResponse = responseLBS status200 jsonHeaders . encode
 
 errorResponse :: Status -> Text -> Response
 errorResponse s err =

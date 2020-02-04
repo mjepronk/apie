@@ -30,7 +30,7 @@ import qualified RIO.List as L
 type Hash = String
 
 data Store = Store
-    { root :: FilePath
+    { path :: FilePath
     }
 
 class HasStore env where
@@ -81,7 +81,7 @@ getRelFilePath :: HasStore env => Hash -> RIO env (Maybe FilePath)
 getRelFilePath hash = do
     fp <- getFilePath hash
     store <- asks getStore
-    pure $ makeRelative (root store) <$> fp
+    pure $ makeRelative (path store) <$> fp
 
 withStoreFile :: MonadUnliftIO m => Store -> Hash -> (Handle -> m a) -> m (Maybe a)
 withStoreFile store hash action = do
@@ -92,7 +92,7 @@ withStoreFile store hash action = do
 
 withStoreTempFile :: MonadUnliftIO m => Store -> String -> (FilePath -> Handle -> m a) -> m a
 withStoreTempFile store filename action = do
-    let tmp = root store </> "tmp"
+    let tmp = path store </> "tmp"
     createDirectoryIfMissing True tmp
     withTempFile tmp filename action
 
@@ -115,7 +115,7 @@ deleteFile hash = do
 
 -- | Get the directory path for a hash.
 hashDir :: Store -> Hash -> FilePath
-hashDir store hash = root store </> take 2 hash </> hash
+hashDir store hash = path store </> take 2 hash </> hash
 
 -- | Hash a file at the given path.
 hashFile :: HashAlgorithm ha => FilePath -> IO (Digest ha)

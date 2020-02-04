@@ -22,7 +22,6 @@ import Apie.Internal.Store (HasStore(..), Store(..), Hash, storeFile,
 data Log = Log
     { store     :: !Store
     , extension :: !String
-    , index     :: [(LogId, FilePath)]
     }
 
 class HasLog env where
@@ -130,10 +129,10 @@ readIndex = do
         in  (read . T.unpack $ T.strip i, T.unpack $ T.strip hash)
 
 indexFile :: Log -> FilePath
-indexFile (Log { store }) = root store </> "index"
+indexFile Log { store } = path store </> "index"
 
 lockFile :: Log -> FilePath
-lockFile (Log { store }) = root store </> "lock"
+lockFile Log { store } = path store </> "lock"
 
 headMay :: [a] -> Maybe a
 headMay [] = Nothing

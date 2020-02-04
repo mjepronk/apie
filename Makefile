@@ -8,7 +8,7 @@ build-static:
 	./nix-build.sh
 
 serve:
-	stack build && stack exec -- backend-server
+	stack build && stack exec -- apie-server
 
 serve-cgi:
 	python -m http.server --cgi 8000
