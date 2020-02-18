@@ -8,9 +8,9 @@ import qualified RIO.ByteString as B
 import RIO.FilePath (FilePath)
 import Apie.Internal.Auth (Auth)
 import Apie.Internal.Env (Env(..))
-import Apie.ContentStore (ContentStore(..), defaultContentStore)
-import Apie.EventLog (EventLog(..), defaultEventLog)
-import Data.Aeson (Value, Object, (.:?), (.!=), withObject)
+import Apie.ContentStore (defaultContentStore)
+import Apie.EventLog (defaultEventLog)
+import Data.Aeson (Value, (.:?), (.!=), withObject)
 import Data.Aeson.Types (Parser, parse)
 import Data.Aeson.Parser (decodeStrictWith, value)
 

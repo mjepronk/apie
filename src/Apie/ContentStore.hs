@@ -66,9 +66,8 @@ httpPutFile req filename = do
     cs <- asks getContentStore
     hash <- runRIO cs (storeLBS filename body)
     fp <- runRIO cs (getRelFilePath hash)
-    cstore <- asks getContentStore
     case fp of
-        Just fp' -> pure $ okResponse hash (filePathToURL cstore fp')
+        Just fp' -> pure $ okResponse hash (filePathToURL cs fp')
         Nothing -> pure $ errorResponse status500 "Could not determine URL."
   where
     okResponse hash url =
@@ -100,5 +99,5 @@ httpDeleteFile _req hash = do
         responseLBS status200 jsonHeaders . encode $ object ["status" .= String "ok"]
 
 filePathToURL :: ContentStore -> FilePath -> URL
-filePathToURL (ContentStore { contentStoreURL }) fp =
+filePathToURL ContentStore { contentStoreURL } fp =
     contentStoreURL <> T.intercalate "/" (T.pack <$> splitDirectories fp)

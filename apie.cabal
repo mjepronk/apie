@@ -60,8 +60,7 @@ library
     -Wincomplete-uni-patterns
     -Wpartial-fields
     -Wredundant-constraints
-    -- -Werror
-
+    -Werror
 
 executable apie-cgi
   main-is: CGI.hs

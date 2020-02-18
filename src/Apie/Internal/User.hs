@@ -62,8 +62,8 @@ createUser user = do
             pure (Right new)
   where
     -- TODO: validate that email and info do not contain `sepChar`
-    validateUser :: User T.Text -> Either ValidationError (User T.Text)
-    validateUser = undefined
+    -- validateUser :: User T.Text -> Either ValidationError (User T.Text)
+    -- validateUser = undefined
 
     cost = 5
 
@@ -96,7 +96,7 @@ writeUsers users = do
     writeFileUtf8 passwdFile contents
   where
     encodeUser :: User ByteString -> T.Text
-    encodeUser (User {..}) =
+    encodeUser User {..} =
         T.intercalate (T.singleton sepChar) [email, decodeUtf8Lenient password, info]
 
 findUser :: [User a] -> T.Text -> Maybe (User a)

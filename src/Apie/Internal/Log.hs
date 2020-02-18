@@ -1,5 +1,3 @@
--- TODO: do not expose the LogId (it's an implementation detail to keep an order
--- on the files), only the Hash
 module Apie.Internal.Log where
 
 import Crypto.Hash (Digest, SHA256, hash)
@@ -50,15 +48,16 @@ instance Show LogException where
 instance Exception LogException
 
 
+-- TODO: should be a NOOP when eventId is already in the log
 appendLog :: (HasLog env, HasStore env)
-          => Maybe LogId -> LB.ByteString -> RIO env (Either LogError LogId)
+          => Maybe Hash -> LB.ByteString -> RIO env (Either LogError Hash)
 appendLog expected bs = do
     log <- asks getLog
     withLogLock log Exclusive $ \_ -> do
         idx <- readIndex
         let revIdx = reverse idx
             (prevId, prevHash) = fromMaybe (0, show emptyHash) (headMay revIdx)
-        if maybe True (== prevId) expected
+        if maybe True (== prevHash) expected
         then do
             let i = prevId + 1
                 filename = (printf "%010d" i) <> extension log
@@ -68,16 +67,16 @@ appendLog expected bs = do
                 liftIO $ hPutStrLn h prevHash
                 liftIO $ LB.hPut h bs
                 hClose h
-                hash <- storeFile filename fp
-                let idx' = reverse ((i, hash) : revIdx)
+                hash' <- storeFile filename fp
+                let idx' = reverse ((i, hash') : revIdx)
                 writeIndex idx'
-                pure (Right i)
+                pure (Right hash')
         else pure (Left DoesNotMatchExpected)
 
 readLog :: HasStore env => Hash -> RIO env (Maybe B.ByteString)
-readLog hash = do
+readLog hash' = do
     store <- asks getStore
-    withStoreFile store hash $ \h ->
+    withStoreFile store hash' $ \h ->
         liftIO $ hGetLine h  -- Ignore the hash of the previous log entry.
             >> B.hGetContents h
 
@@ -107,7 +106,7 @@ withLogLock log mode action =
 writeIndex :: HasLog env => LogIndex -> RIO env ()
 writeIndex idx = do
     log <- asks getLog
-    withBinaryFileDurableAtomic (indexFile log) WriteMode $ \h -> do
+    withBinaryFileDurableAtomic (indexFile log) WriteMode $ \h ->
         traverse_ (B.hPutStr h . encodeUtf8 . encodeLine) idx
   where
     encodeLine (i, h) = T.pack (printf "%010d" i) <> " " <> T.pack h <> "\n"
@@ -125,8 +124,8 @@ readIndex = do
         pure []
   where
     decodeLine x =
-        let (i, hash) = T.break (== ' ') x
-        in  (read . T.unpack $ T.strip i, T.unpack $ T.strip hash)
+        let (i, hash') = T.break (== ' ') x
+        in  (read . T.unpack $ T.strip i, T.unpack $ T.strip hash')
 
 indexFile :: Log -> FilePath
 indexFile Log { store } = path store </> "index"

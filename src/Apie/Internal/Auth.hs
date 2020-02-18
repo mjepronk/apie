@@ -16,14 +16,14 @@ import Data.Aeson (ToJSON(..), (.=), object)
 
 import Apie.Internal.User (User(..), authenticate)
 
-data Auth = Auth { user :: !(User ()) }
+newtype Auth = Auth { user :: User () }
 
 instance ToJSON Auth where
-    toJSON (Auth { user }) = object
-        [ "user" .= (object
+    toJSON Auth { user } = object
+        [ "user" .= object
             [ "email" .= email user
             , "info" .= info user
-            ])
+            ]
         ]
 
 class HasAuth env where
@@ -47,9 +47,9 @@ getAuthUser req = do
         Nothing -> pure Nothing
 
 authMiddleware :: Middleware
-authMiddleware = flip basicAuth authSettings (\u p -> runRIO () $ do
+authMiddleware = basicAuth (\u p -> runRIO () $ do
     x <- authenticate (decodeUtf8Lenient u) (decodeUtf8Lenient p)
-    pure (isJust x))
+    pure (isJust x)) authSettings
 
 authSettings :: AuthSettings
 authSettings = "Apie"
