@@ -10,7 +10,8 @@ import qualified RIO.Text as T
 import qualified RIO.ByteString.Lazy as LB
 
 import Apie.ContentStore (httpPutFile, httpGetFile, httpDeleteFile)
-import Apie.EventLog (httpPutEvent, httpGetEvent, httpGetEvents)
+import Apie.EventLog (httpPutEvent, httpGetEvent, httpGetEvents, httpGetEventsHead)
+import Apie.Link (httpPutLink)
 import Apie.Info (httpGetInfo)
 import Apie.Internal.Auth (Auth(..), authMiddleware, getAuthUser)
 import Apie.Internal.Config (parseConfig)
@@ -29,6 +30,7 @@ app = authMiddleware $ \req send -> do
               "GET"  -> httpGetEvents req
               "PUT"  -> httpPutEvent req
               "POST" -> httpPutEvent req
+              "HEAD" -> httpGetEventsHead req
               _      -> pure badRequest
       ["events", hash] ->
           case requestMethod req of
@@ -41,6 +43,11 @@ app = authMiddleware $ \req send -> do
               "GET"    -> httpGetFile req (T.unpack hashOrFilename)
               "DELETE" -> httpDeleteFile req (T.unpack hashOrFilename)
               _        -> pure badRequest
+      ["links"] ->
+          case requestMethod req of
+              "PUT"  -> httpPutLink req
+              "POST" -> httpPutLink req
+              _      -> pure badRequest
       ["info"] ->
           case requestMethod req of
               "GET" -> httpGetInfo req

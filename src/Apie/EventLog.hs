@@ -4,6 +4,7 @@ module Apie.EventLog
     , httpPutEvent
     , httpGetEvent
     , httpGetEvents
+    , httpGetEventsHead
     , defaultEventLog
     )
 where
@@ -11,12 +12,12 @@ where
 import RIO hiding (log)
 import qualified RIO.Text as T
 import RIO.Time (UTCTime, getCurrentTime)
-import RIO.List (unzip, find, headMaybe, lastMaybe)
+import RIO.List (unzip, find, lastMaybe)
 import RIO.Partial (fromJust)
 import Data.Aeson (ToJSON(..), FromJSON(..), Value(..), (.:), (.:?), (.!=), (.=),
     object, withObject, encode, decode, decodeStrict)
 import Network.Wai (Request, Response, lazyRequestBody, queryString, responseLBS, requestHeaders)
-import Network.HTTP.Types (HeaderName, status200, status304, status404, status412, status500, queryToQueryText)
+import Network.HTTP.Types (HeaderName, status200, status304, status400, status404, status412, queryToQueryText)
 import Network.HTTP.Types.Header (hIfMatch, hIfNoneMatch)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
@@ -125,7 +126,7 @@ httpPutEvent req = do
             case hash of
                 Right hash' -> pure $ okResponse (event { hash=Just (show hash') })
                 Left DoesNotMatchExpected -> pure $ errorResponse status412 (expectedErr expected)
-        Nothing -> pure $ errorResponse status500 "Invalid JSON."
+        Nothing -> pure $ errorResponse status400 "Invalid JSON."
   where
     expectedErr :: Maybe Hash -> Text
     expectedErr = ("Event log does not match expected version " <>) . fromString . fromJust
@@ -138,7 +139,7 @@ httpGetEvent _req hash = do
         Just bs' ->
             case decodeStrict bs' of
                 Just event -> pure (responseWithETag hash (event { hash=Just hash }))
-                Nothing -> pure (errorResponse status500 "Event JSON malformed.")
+                Nothing -> pure (errorResponse status400 "Event JSON malformed.")
         Nothing ->
             pure (errorResponse status404 "Event not found.")
 
@@ -154,13 +155,13 @@ httpGetEvents req = do
     if lastHash /= (toString <$> getHeader req hIfNoneMatch)
     then
         case traverse decodeStrict bs of
-            Just events ->
+            Just events -> do
                 let events' = (\(h, e) -> e { hash=Just h}) <$> zip hs events
-                in  case lastHash of
-                        Just h -> pure (responseWithETag h events')
-                        Nothing -> pure (okResponse events')
+                case lastHash of
+                    Just h -> pure (responseWithETag h events')
+                    Nothing -> pure (okResponse events')
             Nothing ->
-                pure (errorResponse status500 "Could not decode event.")
+                pure (errorResponse status400 "Could not decode event.")
     else pure (errorResponse status304 "Already up to date.")
   where
     getQueryParam name q =
@@ -168,14 +169,23 @@ httpGetEvents req = do
             Just (_, v) -> T.unpack <$> v
             Nothing -> Nothing
 
+httpGetEventsHead :: HasEventLog env => Request -> RIO env Response
+httpGetEventsHead _ = do
+    el <- asks getEventLog
+    (hs, _) <- unzip <$> runRIO el (iterateLog Nothing Nothing)
+    pure (responseLBS status200 (headers (lastMaybe hs)) mempty)
+  where
+    headers (Just h) = jsonHeaders <> [("ETag", fromString h), ("X-Apie-Hash", fromString h)]
+    headers Nothing  = jsonHeaders
+
 responseWithETag :: ToJSON a => Hash -> a -> Response
-responseWithETag hash =
+responseWithETag h =
     responseLBS status200 headers . encode
   where
-    headers = jsonHeaders <> [("ETag", fromString hash)]
+    headers = jsonHeaders <> [("ETag", fromString h), ("X-Apie-Hash", fromString h)]
 
 toString :: ByteString -> String
 toString = T.unpack . decodeUtf8Lenient
 
 getHeader :: Request -> HeaderName -> Maybe ByteString
-getHeader req header = snd <$> headMaybe (filter (\(h, _) -> h == header) (requestHeaders req))
+getHeader req header = snd <$> find ((== header) . fst) (requestHeaders req)

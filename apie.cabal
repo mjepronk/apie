@@ -1,6 +1,6 @@
 cabal-version: 1.12
 name:           apie
-version:        0.1.0.1
+version:        0.1.0.3
 description:    Please see the README on GitHub at <https://github.com/mjepronk/apie#readme>
 homepage:       https://github.com/mjepronk/apie#readme
 bug-reports:    https://github.com/mjepronk/apie/issues
@@ -33,6 +33,7 @@ library
     , Apie.Internal.Utils
     , Apie.ContentStore
     , Apie.EventLog
+    , Apie.Link
     , Apie.Info
   hs-source-dirs:
       src
@@ -43,6 +44,7 @@ library
     , cryptonite
     , filelock
     , http-types
+    , unix
     , uuid
     , wai
     , wai-extra
