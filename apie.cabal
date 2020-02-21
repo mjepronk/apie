@@ -1,6 +1,6 @@
 cabal-version: 1.12
 name:           apie
-version:        0.1.0.3
+version:        0.1.0.4
 description:    Please see the README on GitHub at <https://github.com/mjepronk/apie#readme>
 homepage:       https://github.com/mjepronk/apie#readme
 bug-reports:    https://github.com/mjepronk/apie/issues
@@ -26,6 +26,7 @@ library
     , Apie.Internal.Auth
     , Apie.Internal.Config
     , Apie.Internal.Env
+    , Apie.Internal.FileMode
     , Apie.Internal.ISODateTime
     , Apie.Internal.Log
     , Apie.Internal.Store
@@ -35,6 +36,7 @@ library
     , Apie.EventLog
     , Apie.Link
     , Apie.Info
+    , Apie.User
   hs-source-dirs:
       src
   build-depends:

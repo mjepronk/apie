@@ -1,4 +1,4 @@
--- A content-addressable store which uses SHA256 hashes as identifiers. This
+-- | A content-addressable store which uses SHA256 hashes as identifiers. This
 -- functionality is used by both the Content Store and the Event Log
 -- functionality of Apie.
 module Apie.Internal.Store
@@ -26,11 +26,15 @@ import RIO.FilePath ((</>), takeDirectory, makeRelative)
 import qualified RIO.ByteString as B
 import qualified RIO.ByteString.Lazy as LB
 import qualified RIO.List as L
+import System.Posix.Files (setFileMode)
+import System.Posix.Types (FileMode)
 
 type Hash = String
 
 data Store = Store
     { path :: FilePath
+    , fileMode :: FileMode
+    , dirMode :: FileMode
     }
 
 class HasStore env where
@@ -39,11 +43,10 @@ class HasStore env where
 instance HasStore Store where
     getStore = id
 
--- Important: this function moves the file from the path given to the store!
+-- Important: this function *moves* the file to the store!
 -- TODO ensure a proper filename
 -- TODO ensure that existing file matches hash
 -- TODO disallow cgi scripts
--- TODO ensure correct permissions (644 on files and 755 on dirs)
 -- TODO renameFile is not (always) atomic, we should have a look at other implementations (RIO)
 storeFile :: HasStore env => String -> FilePath -> RIO env Hash
 storeFile filename fp = do
@@ -51,9 +54,14 @@ storeFile filename fp = do
     digest <- liftIO (hashFile fp)
     let hash = show (digest :: Digest SHA256)
         dir = hashDir store hash
+        dest = dir </> filename
     createDirectoryIfMissing True dir
+    liftIO $ setFileMode (takeDirectory dir) (dirMode store)
+    liftIO $ setFileMode dir (dirMode store)
     contents <- listDirectory dir
-    when (L.null contents) (renameFile fp (dir </> filename))
+    when (L.null contents) $ do
+        renameFile fp dest
+        liftIO $ setFileMode dest (fileMode store)
     pure hash
 
 storeLBS :: HasStore env => String -> LB.ByteString -> RIO env Hash

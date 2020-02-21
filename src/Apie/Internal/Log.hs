@@ -1,4 +1,13 @@
-module Apie.Internal.Log where
+module Apie.Internal.Log
+    ( Log(..)
+    , LogError(..)
+    , LogException(..)
+    , HasLog(..)
+    , appendLog
+    , readLog
+    , iterateLog
+    )
+where
 
 import Crypto.Hash (Digest, SHA256, hash)
 import Data.Maybe (fromMaybe)
@@ -102,7 +111,6 @@ withLogLock log mode action =
     withFileLock (lockFile log) mode $ \lock ->
     run (action lock)
 
--- Important: only perform when the log is locked
 writeIndex :: HasLog env => LogIndex -> RIO env ()
 writeIndex idx = do
     log <- asks getLog

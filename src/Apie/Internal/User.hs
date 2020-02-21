@@ -3,13 +3,14 @@ module Apie.Internal.User
     ( User(..)
     , authenticate
     , createUser
+    , updateUser
     )
 where
 
 import RIO
 import qualified RIO.Text as T
 import RIO.Directory (doesFileExist)
-import RIO.List (headMaybe)
+import RIO.List (find)
 import RIO.ByteString (ByteString)
 import Crypto.KDF.BCrypt (hashPassword, validatePassword)
 
@@ -22,6 +23,7 @@ data User a = User
 
 data ValidationError
   = EmailAlreadyTaken
+  | UserDoesNotExist
   | InvalidInfo
   | InvalidPassword
   deriving Show
@@ -36,7 +38,7 @@ instance Exception UserException
 authenticate :: (MonadThrow m, MonadUnliftIO m)
              => T.Text -> T.Text -> m (Maybe (User ()))
 authenticate u p = do
-    users <- listUsers
+    users <- getUsers
     case findUser users u of
         Just user ->
             if validatePassword (encodeUtf8 p) (password user)
@@ -48,11 +50,11 @@ createUser :: (MonadThrow m, MonadUnliftIO m)
            => User T.Text -> m (Either ValidationError (User ByteString))
 createUser user = do
     -- TODO: lock passwd file
-    users <- listUsers
+    users <- getUsers
     case findUser users (email user) of
         Just _ -> pure (Left EmailAlreadyTaken)
         Nothing -> do
-            p <- liftIO $ hashPassword cost (encodeUtf8 (password user))
+            p <- hashPassword' (password user)
             let new = User
                     { email = email user
                     , password = p
@@ -60,16 +62,36 @@ createUser user = do
                     }
             writeUsers (users <> [new])
             pure (Right new)
-  where
-    -- TODO: validate that email and info do not contain `sepChar`
-    -- validateUser :: User T.Text -> Either ValidationError (User T.Text)
-    -- validateUser = undefined
 
-    cost = 5
+updateUser :: (MonadThrow m, MonadUnliftIO m)
+           => User T.Text -> m (Either ValidationError (User ByteString))
+updateUser user = do
+    -- TODO: lock passwd file
+    users <- getUsers
+    case findUser users (email user) of
+        Just _ -> do
+            p <- hashPassword' (password user)
+            let new = User
+                    { email = email user
+                    , password = p
+                    , info = info user
+                    }
+            let users' = updateUser' new <$> users
+            writeUsers users'
+            pure (Right new)
+        Nothing -> pure (Left UserDoesNotExist)
+  where
+    updateUser' new u
+      | email u == email new = new
+      | otherwise = u
+
+-- TODO: validate that email and info do not contain `sepChar`
+-- validateUser :: User T.Text -> Either ValidationError (User T.Text)
+-- validateUser = undefined
 
 -- TODO: ensure chmod 700
-listUsers :: (MonadThrow m, MonadUnliftIO m) => m [User ByteString]
-listUsers = do
+getUsers :: (MonadThrow m, MonadUnliftIO m) => m [User ByteString]
+getUsers = do
     exists <- doesFileExist passwdFile
     if exists
     then do
@@ -100,9 +122,13 @@ writeUsers users = do
         T.intercalate (T.singleton sepChar) [email, decodeUtf8Lenient password, info]
 
 findUser :: [User a] -> T.Text -> Maybe (User a)
-findUser users e = headMaybe (filter emailMatches users)
+findUser users e = find emailMatches users
   where
     emailMatches x = email x == e
+
+hashPassword' :: MonadUnliftIO m => Text -> m ByteString
+hashPassword' p = liftIO $ hashPassword cost (encodeUtf8 p)
+  where cost = 5
 
 passwdFile :: FilePath
 passwdFile = "passwd"

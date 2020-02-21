@@ -16,15 +16,18 @@ import RIO.List (unzip, find, lastMaybe)
 import RIO.Partial (fromJust)
 import Data.Aeson (ToJSON(..), FromJSON(..), Value(..), (.:), (.:?), (.!=), (.=),
     object, withObject, encode, decode, decodeStrict)
+import Data.Aeson.Types (explicitParseFieldMaybe)
 import Network.Wai (Request, Response, lazyRequestBody, queryString, responseLBS, requestHeaders)
 import Network.HTTP.Types (HeaderName, status200, status304, status400, status404, status412, queryToQueryText)
 import Network.HTTP.Types.Header (hIfMatch, hIfNoneMatch)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
+import System.Posix.Types (FileMode)
 
 import Apie.Internal.Auth (Auth(..), HasAuth(..))
-import Apie.Internal.Log (Log(..), HasLog(..), LogError(..), appendLog, readLog, iterateLog)
+import Apie.Internal.FileMode (toSymbolicRep, fromSymbolicRep, parseFileMode)
 import Apie.Internal.ISODateTime (ISODateTime(..))
+import Apie.Internal.Log (Log(..), HasLog(..), LogError(..), appendLog, readLog, iterateLog)
 import Apie.Internal.Store (Store(..), HasStore(..), Hash)
 import Apie.Internal.User (User(..))
 import Apie.Internal.Utils (okResponse, errorResponse, jsonHeaders)
@@ -32,14 +35,22 @@ import Apie.Internal.Utils (okResponse, errorResponse, jsonHeaders)
 
 data EventLog = EventLog
     { eventLogPath :: FilePath
+    , eventLogFileMode :: FileMode
+    , eventLogDirMode  :: FileMode
     }
 
 instance FromJSON EventLog where
     parseJSON = withObject "contentstore" $ \v -> EventLog
         <$> v .:? "path" .!= eventLogPath defaultEventLog
+        <*> (explicitParseFieldMaybe parseFileMode v "fileMode" .!= eventLogFileMode defaultEventLog)
+        <*> (explicitParseFieldMaybe parseFileMode v "dirMode" .!= eventLogDirMode defaultEventLog)
 
 instance ToJSON EventLog where
-    toJSON e = object [ "path" .= eventLogPath e ]
+    toJSON e = object
+        [ "path" .= eventLogPath e
+        , "fileMode" .= toSymbolicRep (eventLogFileMode e)
+        , "dirMode" .= toSymbolicRep (eventLogDirMode e)
+        ]
 
 class HasEventLog env where
     getEventLog :: env -> EventLog
@@ -48,7 +59,11 @@ instance HasEventLog EventLog where
     getEventLog = id
 
 instance HasStore EventLog where
-    getStore x = Store (eventLogPath x)
+    getStore x = Store
+        { path = eventLogPath x
+        , fileMode = eventLogFileMode x
+        , dirMode = eventLogDirMode x
+        }
 
 instance HasLog EventLog where
     getLog x = Log (getStore x) ".json"
@@ -64,15 +79,14 @@ data Event = Event
     }
 
 instance ToJSON Event where
-    toJSON e =
-        object
-            [ "eventId"   .= eventId e
-            , "eventType" .= eventType e
-            , "body"      .= body e
-            , "createdBy" .= createdBy e
-            , "createdAt" .= ISODateTime (createdAt e)
-            , "hash"      .= hash e
-            ]
+    toJSON e = object
+        [ "eventId"   .= eventId e
+        , "eventType" .= eventType e
+        , "body"      .= body e
+        , "createdBy" .= createdBy e
+        , "createdAt" .= ISODateTime (createdAt e)
+        , "hash"      .= hash e
+        ]
 
 instance FromJSON Event where
     parseJSON = withObject "stored event" $ \v -> Event
@@ -96,7 +110,11 @@ instance FromJSON NewEvent where
         <*> v .:  "body"
 
 defaultEventLog :: EventLog
-defaultEventLog = EventLog "events/default/"
+defaultEventLog = EventLog
+    { eventLogPath = "events/default/"
+    , eventLogFileMode = fromJust (fromSymbolicRep "r--r-----")
+    , eventLogDirMode = fromJust (fromSymbolicRep "rwxr-x---")
+    }
 
 
 -- TODO return error when UUID is invalid

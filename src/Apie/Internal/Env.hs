@@ -1,4 +1,7 @@
-module Apie.Internal.Env where
+module Apie.Internal.Env
+    ( Env(..)
+    )
+where
 
 import Apie.ContentStore (ContentStore(..), HasContentStore(..))
 import Apie.EventLog (EventLog(..), HasEventLog(..))

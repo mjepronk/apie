@@ -1,5 +1,6 @@
 module Apie.Info
-  ( httpGetInfo )
+    ( httpGetInfo
+    )
 where
 
 import RIO

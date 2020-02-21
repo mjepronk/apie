@@ -1,4 +1,7 @@
-module Apie.Link where
+module Apie.Link
+    ( httpPutLink
+    )
+where
 
 import RIO
 import RIO.Text as T

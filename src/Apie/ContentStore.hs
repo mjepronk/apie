@@ -12,11 +12,15 @@ where
 
 import RIO
 import qualified RIO.Text as T
+import RIO.Partial (fromJust)
 import Data.Aeson (ToJSON(..), FromJSON(..), Value(..), (.=), (.:?), (.!=), object, encode, withObject)
+import Data.Aeson.Types (explicitParseFieldMaybe)
 import RIO.FilePath (splitDirectories)
 import Network.Wai (Request, Response, responseLBS, responseFile, lazyRequestBody)
 import Network.HTTP.Types (status200, status404, status500)
+import System.Posix.Types (FileMode)
 
+import Apie.Internal.FileMode (toSymbolicRep, fromSymbolicRep, parseFileMode)
 import Apie.Internal.Store (Store(..), HasStore(..), storeLBS, getFilePath,
     getRelFilePath, deleteFile)
 import Apie.Internal.Utils (jsonHeaders, errorResponse)
@@ -26,23 +30,33 @@ type Hash = String
 type URL = T.Text
 
 data ContentStore = ContentStore
-    { contentStorePath :: FilePath
-    , contentStoreURL :: URL
+    { contentStorePath     :: FilePath
+    , contentStoreURL      :: URL
+    , contentStoreFileMode :: FileMode
+    , contentStoreDirMode  :: FileMode
     }
 
 instance FromJSON ContentStore where
     parseJSON = withObject "contentstore" $ \v -> ContentStore
         <$> v .:? "path" .!= contentStorePath defaultContentStore
         <*> v .:? "url" .!= contentStoreURL defaultContentStore
+        <*> (explicitParseFieldMaybe parseFileMode v "fileMode" .!= contentStoreFileMode defaultContentStore)
+        <*> (explicitParseFieldMaybe parseFileMode v "dirMode" .!= contentStoreDirMode defaultContentStore)
 
 instance ToJSON ContentStore where
     toJSON c = object
         [ "path" .= contentStorePath c
         , "url" .= contentStoreURL c
+        , "fileMode" .= toSymbolicRep (contentStoreFileMode c)
+        , "dirMode" .= toSymbolicRep (contentStoreDirMode c)
         ]
 
 instance HasStore ContentStore where
-    getStore x = Store (contentStorePath x)
+    getStore x = Store
+        { path = contentStorePath x
+        , fileMode = contentStoreFileMode x
+        , dirMode = contentStoreDirMode x
+        }
 
 class HasContentStore env where
     getContentStore :: env -> ContentStore
@@ -56,8 +70,12 @@ instance Show ContentStoreError where
     show FileDoesNotExists = "File does not exist in content store."
 
 defaultContentStore :: ContentStore
-defaultContentStore = ContentStore "media/" "http://localhost:8000/media/"
-
+defaultContentStore = ContentStore
+    { contentStorePath = "media/"
+    , contentStoreURL = "http://localhost:8000/media/"
+    , contentStoreFileMode = fromJust (fromSymbolicRep "rw-r--r--")
+    , contentStoreDirMode = fromJust (fromSymbolicRep "rwxr-xr-x")
+    }
 
 -- TODO return size and content type in okResponse
 httpPutFile :: HasContentStore env => Request -> String -> RIO env Response
