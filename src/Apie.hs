@@ -15,17 +15,24 @@ import Apie.EventLog (httpPutEvent, httpGetEvent, httpGetEvents, httpGetEventsHe
 import Apie.Link (httpPutLink)
 import Apie.Info (httpGetInfo)
 import Apie.User (httpUpdateUser)
-import Apie.Internal.Auth (Auth(..), authMiddleware, getAuthUser)
+import Apie.Internal.Auth (authenticateUser, authenticateResponse)
+import Apie.Internal.Env (Env)
 import Apie.Internal.Config (parseConfig)
 import Apie.Internal.Utils (badRequest, plainHeaders, notFound, version)
 
 app :: Application
-app = authMiddleware $ \req send -> do
-    user <- fromJust <$> getAuthUser req
-    let auth = Auth { user=user }
-    env <- fromJust <$> parseConfig auth
+app req send = do
+    a <- authenticateUser req
+    case a of
+        Just auth -> do
+            env <- fromJust <$> parseConfig auth
+            send =<< runRIO env (router req)
+        Nothing ->
+            send authenticateResponse
 
-    send =<< runRIO env (case pathInfo req of
+router :: Request -> RIO Env Response
+router req =
+    case pathInfo req of
         [] -> pure $ home req
         ["events"] ->
             case requestMethod req of
@@ -58,7 +65,7 @@ app = authMiddleware $ \req send -> do
             case requestMethod req of
                 "POST" -> httpUpdateUser req
                 _      -> pure badRequest
-        _ -> pure notFound)
+        _ -> pure notFound
 
 home :: Request -> Response
 home _req = responseLBS status200 plainHeaders $

@@ -1,20 +1,20 @@
 module Apie.Internal.Auth
     ( Auth(..)
     , HasAuth(..)
-    , getAuthUser
-    , authMiddleware
-    , authSettings
+    , authenticateUser
+    , authenticateResponse
     )
  where
 
 import RIO
-import RIO.List (headMaybe)
-import Network.HTTP.Types (hAuthorization)
-import Network.Wai (Middleware, Request, requestHeaders)
-import Network.Wai.Middleware.HttpAuth (AuthSettings, basicAuth, extractBasicAuth)
+import RIO.List (find)
+import Network.HTTP.Types (hAuthorization, status401)
+import Network.Wai (Request, Response, requestHeaders)
+import Network.Wai.Middleware.HttpAuth (extractBasicAuth)
 import Data.Aeson (ToJSON(..), (.=), object)
 
 import Apie.Internal.User (User(..), authenticate)
+import Apie.Internal.Utils (errorResponse')
 
 newtype Auth = Auth { user :: User () }
 
@@ -32,24 +32,23 @@ class HasAuth env where
 instance HasAuth Auth where
     getAuth = id
 
-getAuthUser :: (MonadThrow m, MonadUnliftIO m) => Request -> m (Maybe (User ()))
-getAuthUser req = do
-    let hs = filter (\(h, _) -> h == hAuthorization) $ requestHeaders req
-    case headMaybe hs of
+authenticateUser :: (MonadThrow m, MonadUnliftIO m) => Request -> m (Maybe Auth)
+authenticateUser req = do
+    let authHeader = find (\(h, _) -> h == hAuthorization) (requestHeaders req)
+    case authHeader of
         Just (_, bs) ->
             case extractBasicAuth bs of
                 Just (u, p) -> do
                     x <- authenticate (decodeUtf8Lenient u) (decodeUtf8Lenient p)
                     case x of
-                        Just user -> pure (Just user)
+                        Just user -> pure (Just (Auth { user=user }))
                         Nothing -> pure Nothing
                 Nothing -> pure Nothing
         Nothing -> pure Nothing
 
-authMiddleware :: Middleware
-authMiddleware = basicAuth (\u p -> runRIO () $ do
-    x <- authenticate (decodeUtf8Lenient u) (decodeUtf8Lenient p)
-    pure (isJust x)) authSettings
-
-authSettings :: AuthSettings
-authSettings = "Apie"
+authenticateResponse :: Response
+authenticateResponse =
+    errorResponse'
+        [("WWW-Authenticate", "Basic realm=\"Apie\"")]
+        status401
+        "Basic authentication required"

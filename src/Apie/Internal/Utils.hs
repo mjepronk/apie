@@ -1,10 +1,11 @@
 module Apie.Internal.Utils
     ( plainHeaders
     , jsonHeaders
+    , okResponse
     , notFound
     , badRequest
-    , okResponse
     , errorResponse
+    , errorResponse'
     , version
     )
 where
@@ -24,18 +25,21 @@ plainHeaders = [("Content-Type", "text/plain")]
 jsonHeaders :: ResponseHeaders
 jsonHeaders = [("Content-Type", "application/json")]
 
-notFound :: Response
-notFound = responseLBS status404 plainHeaders "This path leads nowhere."
-
-badRequest :: Response
-badRequest = responseLBS status400 plainHeaders "Bad request"
-
 okResponse :: ToJSON a => a -> Response
 okResponse = responseLBS status200 jsonHeaders . encode
 
+notFound :: Response
+notFound = errorResponse status404 "This path leads nowhere."
+
+badRequest :: Response
+badRequest = errorResponse status400 "Bad request"
+
 errorResponse :: Status -> Text -> Response
-errorResponse s err =
-    responseLBS s jsonHeaders . encode $ object
+errorResponse = errorResponse' []
+
+errorResponse' :: ResponseHeaders -> Status -> Text -> Response
+errorResponse' hdrs s err =
+    responseLBS s (jsonHeaders <> hdrs) . encode $ object
         [ "status" .= String "error"
         , "errorMessage" .= String err]
 
