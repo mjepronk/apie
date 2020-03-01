@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveFunctor #-}
 module Apie.Internal.User
     ( User(..)
     , authenticate
@@ -19,7 +20,7 @@ data User a = User
   , password :: !a
   , info     :: !T.Text
   }
-  deriving Show
+  deriving (Show, Functor)
 
 data ValidationError
   = EmailAlreadyTaken
@@ -42,7 +43,7 @@ authenticate u p = do
     case findUser users u of
         Just user ->
             if validatePassword (encodeUtf8 p) (password user)
-            then pure (Just (user { password=() }))
+            then pure (Just (void user))
             else pure Nothing
         Nothing -> pure Nothing
 
@@ -55,27 +56,23 @@ createUser user = do
         Just _ -> pure (Left EmailAlreadyTaken)
         Nothing -> do
             p <- hashPassword' (password user)
-            let new = User
-                    { email = email user
-                    , password = p
-                    , info = info user
-                    }
+            let new = fmap (const p) user
             writeUsers (users <> [new])
             pure (Right new)
 
 updateUser :: (MonadThrow m, MonadUnliftIO m)
-           => User T.Text -> m (Either ValidationError (User ByteString))
-updateUser user = do
+           => User (Maybe T.Text) -> m (Either ValidationError (User ByteString))
+updateUser newUser = do
     -- TODO: lock passwd file
     users <- getUsers
-    case findUser users (email user) of
-        Just _ -> do
-            p <- hashPassword' (password user)
-            let new = User
-                    { email = email user
-                    , password = p
-                    , info = info user
-                    }
+    case findUser users (email newUser) of
+        Just oldUser -> do
+            new <- case password newUser of
+                Just p -> do
+                    p' <- hashPassword' p
+                    pure (fmap (const p') newUser)
+                Nothing ->
+                    pure (fmap (const (password oldUser)) newUser)
             let users' = updateUser' new <$> users
             writeUsers users'
             pure (Right new)

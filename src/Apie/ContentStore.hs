@@ -6,6 +6,7 @@ module Apie.ContentStore
     , httpPutFile
     , httpGetFile
     , httpDeleteFile
+    , httpVerifyStore
     , defaultContentStore
     )
 where
@@ -13,17 +14,17 @@ where
 import RIO
 import qualified RIO.Text as T
 import RIO.Partial (fromJust)
-import Data.Aeson (ToJSON(..), FromJSON(..), Value(..), (.=), (.:?), (.!=), object, encode, withObject)
+import Data.Aeson (ToJSON(..), FromJSON(..), Value(..), (.=), (.:?), (.!=), object, withObject)
 import Data.Aeson.Types (explicitParseFieldMaybe)
 import RIO.FilePath (splitDirectories)
-import Network.Wai (Request, Response, responseLBS, responseFile, lazyRequestBody)
+import Network.Wai (Request, Response, responseFile, lazyRequestBody)
 import Network.HTTP.Types (status200, status404, status500)
 import System.Posix.Types (FileMode)
 
 import Apie.Internal.FileMode (toSymbolicRep, fromSymbolicRep, parseFileMode)
 import Apie.Internal.Store (Store(..), HasStore(..), storeLBS, getFilePath,
-    getRelFilePath, deleteFile)
-import Apie.Internal.Utils (jsonHeaders, errorResponse)
+    getRelFilePath, deleteFile, fixPermissions)
+import Apie.Internal.Utils (okResponse, errorResponse)
 
 
 type Hash = String
@@ -85,16 +86,12 @@ httpPutFile req filename = do
     hash <- runRIO cs (storeLBS filename body)
     fp <- runRIO cs (getRelFilePath hash)
     case fp of
-        Just fp' -> pure $ okResponse hash (filePathToURL cs fp')
-        Nothing -> pure $ errorResponse status500 "Could not determine URL."
-  where
-    okResponse hash url =
-        responseLBS status200 jsonHeaders .
-        encode $ object
+        Just fp' -> pure $ okResponse (object
             [ "status" .= String "ok"
             , "hash" .= String (T.pack hash)
-            , "url" .= String url
-            ]
+            , "url" .= String (filePathToURL cs fp')
+            ])
+        Nothing -> pure $ errorResponse status500 "Could not determine URL."
 
 -- TODO would be nice if we could return a sensible content type
 httpGetFile :: HasContentStore env => Request -> Hash -> RIO env Response
@@ -110,11 +107,14 @@ httpDeleteFile _req hash = do
     cs <- asks getContentStore
     res <- runRIO cs (deleteFile hash)
     case res of
-        Just _  -> pure $ okResponse
+        Just _  -> pure $ okResponse (object ["status" .= String "ok"])
         Nothing -> pure $ errorResponse status500 "Could not delete file."
-  where
-    okResponse =
-        responseLBS status200 jsonHeaders . encode $ object ["status" .= String "ok"]
+
+httpVerifyStore :: HasContentStore env => Request -> RIO env Response
+httpVerifyStore _req = do
+    cs <- asks getContentStore
+    runRIO cs fixPermissions
+    pure $ okResponse (object ["status" .= String "ok"])
 
 filePathToURL :: ContentStore -> FilePath -> URL
 filePathToURL ContentStore { contentStoreURL } fp =

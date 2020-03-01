@@ -5,6 +5,7 @@ module Apie.EventLog
     , httpGetEvent
     , httpGetEvents
     , httpGetEventsHead
+    , httpVerifyLog
     , defaultEventLog
     )
 where
@@ -28,7 +29,7 @@ import Apie.Internal.Auth (Auth(..), HasAuth(..))
 import Apie.Internal.FileMode (toSymbolicRep, fromSymbolicRep, parseFileMode)
 import Apie.Internal.ISODateTime (ISODateTime(..))
 import Apie.Internal.Log (Log(..), HasLog(..), LogError(..), appendLog, readLog, iterateLog)
-import Apie.Internal.Store (Store(..), HasStore(..), Hash)
+import Apie.Internal.Store (Store(..), HasStore(..), Hash, fixPermissions)
 import Apie.Internal.User (User(..))
 import Apie.Internal.Utils (okResponse, errorResponse, jsonHeaders)
 
@@ -195,6 +196,12 @@ httpGetEventsHead _ = do
   where
     headers (Just h) = jsonHeaders <> [("ETag", fromString h), ("X-Apie-Hash", fromString h)]
     headers Nothing  = jsonHeaders
+
+httpVerifyLog :: HasEventLog env => Request -> RIO env Response
+httpVerifyLog _req = do
+    el <- asks getEventLog
+    runRIO el fixPermissions
+    pure (okResponse (object ["status" .= String "ok"]))
 
 responseWithETag :: ToJSON a => Hash -> a -> Response
 responseWithETag h =

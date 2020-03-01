@@ -10,8 +10,8 @@ import Network.HTTP.Types
 import qualified RIO.Text as T
 import qualified RIO.ByteString.Lazy as LB
 
-import Apie.ContentStore (httpPutFile, httpGetFile, httpDeleteFile)
-import Apie.EventLog (httpPutEvent, httpGetEvent, httpGetEvents, httpGetEventsHead)
+import Apie.ContentStore (httpPutFile, httpGetFile, httpDeleteFile, httpVerifyStore)
+import Apie.EventLog (httpPutEvent, httpGetEvent, httpGetEvents, httpGetEventsHead, httpVerifyLog)
 import Apie.Link (httpPutLink)
 import Apie.Info (httpGetInfo)
 import Apie.User (httpUpdateUser)
@@ -41,10 +41,18 @@ router req =
                 "POST" -> httpPutEvent req
                 "HEAD" -> httpGetEventsHead req
                 _      -> pure badRequest
+        ["events", "verify"] ->
+            case requestMethod req of
+                "POST" -> httpVerifyLog req
+                _      -> pure badRequest
         ["events", hash] ->
             case requestMethod req of
                 "GET" -> httpGetEvent req (T.unpack hash)
                 _     -> pure badRequest
+        ["storage", "verify"] ->
+            case requestMethod req of
+                "POST" -> httpVerifyStore req
+                _      -> pure badRequest
         ["storage", hashOrFilename] ->
             case requestMethod req of
                 "PUT"    -> httpPutFile req (T.unpack hashOrFilename)

@@ -69,7 +69,7 @@ appendLog expected bs = do
         if maybe True (== prevHash) expected
         then do
             let i = prevId + 1
-                filename = (printf "%010d" i) <> extension log
+                filename = printf "%010d" i <> extension log
             withStoreTempFile (store log) filename $ \fp h -> do
                 -- We put the hash of the previous log entry so that we can
                 -- easily verify the integrity of the whole log.

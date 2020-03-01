@@ -41,7 +41,8 @@ errorResponse' :: ResponseHeaders -> Status -> Text -> Response
 errorResponse' hdrs s err =
     responseLBS s (jsonHeaders <> hdrs) . encode $ object
         [ "status" .= String "error"
-        , "errorMessage" .= String err]
+        , "errorMessage" .= String err
+        ]
 
 version :: Text
 version = T.pack (showVersion Paths.version)

@@ -11,15 +11,16 @@ module Apie.Internal.Store
     , withStoreTempFile
     , getFilePath
     , getRelFilePath
+    , fixPermissions
     , deleteFile
     )
 where
 
-import Control.Monad (when)
+import Control.Monad (when, filterM)
 import Crypto.Hash (Digest, HashAlgorithm, SHA256)
 import Crypto.Hash.IO (hashMutableInit, hashMutableUpdate, hashMutableFinalize)
 import RIO
-import RIO.Directory (createDirectoryIfMissing, listDirectory,
+import RIO.Directory (createDirectoryIfMissing, listDirectory, doesFileExist,
     doesDirectoryExist, removeDirectory, removeFile, renameFile)
 import RIO.File (withBinaryFile)
 import RIO.FilePath ((</>), takeDirectory, makeRelative)
@@ -121,11 +122,29 @@ deleteFile hash = do
         contents <- listDirectory fp
         when (null contents) (removeDirectory fp)
 
+-- | Ensure correct file and directory permissions.
+fixPermissions :: HasStore env => RIO env ()
+fixPermissions = do
+    store <- asks getStore
+    liftIO $ do
+        topdirs <- listDirs (path store)
+        for_ topdirs $ \topdir -> do
+            setFileMode topdir (dirMode store)
+            dirs <- listDirs topdir
+            for_ dirs $ \dir -> do
+                setFileMode dir (dirMode store)
+                files <- listFiles dir
+                for_ files $ \file ->
+                    setFileMode file (fileMode store)
+    where
+    listFiles dir = listDirectory dir >>= \x -> pure (fmap (dir </>) x) >>= filterM doesFileExist
+    listDirs dir = listDirectory dir >>= \x -> pure (fmap (dir </>) x) >>= filterM doesDirectoryExist
+
 -- | Get the directory path for a hash.
 hashDir :: Store -> Hash -> FilePath
 hashDir store hash = path store </> take 2 hash </> hash
 
--- | Hash a file at the given path.
+-- | Calculate the hash of a file.
 hashFile :: HashAlgorithm ha => FilePath -> IO (Digest ha)
 hashFile fp = withBinaryFile fp ReadMode $ \h -> do
     context <- hashMutableInit

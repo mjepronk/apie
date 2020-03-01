@@ -8,19 +8,20 @@ import qualified RIO.Text as T
 import Apie.Internal.User (User(..), updateUser)
 import Apie.Internal.Auth (HasAuth, getAuth, user)
 import Apie.Internal.Utils (okResponse, errorResponse)
-import Data.Aeson (FromJSON(..), Value(..), (.:), (.=), decode, object, withObject)
+import Data.Aeson (FromJSON(..), Value(..), (.:?), (.=), decode, object, withObject)
+import Data.Maybe (fromMaybe)
 import Network.HTTP.Types (status400)
 import Network.Wai (Request, Response, lazyRequestBody)
 
 data UpdateUser = UpdateUser
-    { updatePassword :: !Text
-    , updateInfo     :: !Text
+    { updatePassword :: Maybe Text
+    , updateInfo     :: Maybe Text
     }
 
 instance FromJSON UpdateUser where
     parseJSON = withObject "UpdateUser" $ \v -> UpdateUser
-        <$> v .: "password"
-        <*> v .: "info"
+        <$> v .:? "password"
+        <*> v .:? "info"
 
 -- | Update the current user
 httpUpdateUser :: HasAuth env => Request -> RIO env Response
@@ -29,7 +30,10 @@ httpUpdateUser req = do
     body <- liftIO $ lazyRequestBody req
     case decode body of
         Just new -> do
-            r <- updateUser (u { password=updatePassword new, info=updateInfo new  })
+            r <- updateUser (u
+                    { password = updatePassword new
+                    , info = fromMaybe (info u) (updateInfo new)
+                    })
             case r of
                 Right _ -> pure (okResponse statusOk)
                 Left err -> pure (errorResponse status400 (T.pack (show err)))
