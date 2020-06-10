@@ -6,11 +6,11 @@ module Apie.Internal.Log
     , appendLog
     , readLog
     , iterateLog
+    , fixPermissions
     )
 where
 
 import Crypto.Hash (Digest, SHA256, hash)
-import Data.Maybe (fromMaybe)
 import qualified RIO.ByteString as B
 import qualified RIO.ByteString.Lazy as LB
 import qualified RIO.Text as T
@@ -21,10 +21,12 @@ import RIO.FilePath ((</>))
 import RIO.Partial (read)
 import System.FileLock (FileLock, SharedExclusive(..), withFileLock)
 import System.IO (hGetLine, hPutStrLn)
+import System.Posix.Files (setFileMode)
 import Text.Printf (printf)
 
 import Apie.Internal.Store (HasStore(..), Store(..), Hash, storeFile,
     withStoreFile, withStoreTempFile)
+import qualified Apie.Internal.Store as Store
 
 data Log = Log
     { store     :: !Store
@@ -134,6 +136,15 @@ readIndex = do
     decodeLine x =
         let (i, hash') = T.break (== ' ') x
         in  (read . T.unpack $ T.strip i, T.unpack $ T.strip hash')
+
+fixPermissions :: (HasLog env, HasStore env) => RIO env ()
+fixPermissions = do
+    log <- asks getLog
+    store <- asks getStore
+    _ <- Store.fixPermissions
+    liftIO $
+        setFileMode (indexFile log) (fileMode store)
+        *> setFileMode (lockFile log) (fileMode store)
 
 indexFile :: Log -> FilePath
 indexFile Log { store } = path store </> "index"

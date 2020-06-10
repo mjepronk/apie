@@ -1,12 +1,24 @@
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Apie.EventLog
     ( EventLog(..)
     , HasEventLog(..)
+    , Event
+    , Event'(..)
+    , NewEvent(..)
+    , LogError(..)
+    , defaultEventLog
+    , iterateEvents
+    , appendEvent
+    , fixPermissions
+
+    -- | HTTP methods
     , httpPutEvent
     , httpGetEvent
     , httpGetEvents
     , httpGetEventsHead
     , httpVerifyLog
-    , defaultEventLog
     )
 where
 
@@ -28,14 +40,14 @@ import System.Posix.Types (FileMode)
 import Apie.Internal.Auth (Auth(..), HasAuth(..))
 import Apie.Internal.FileMode (toSymbolicRep, fromSymbolicRep, parseFileMode)
 import Apie.Internal.ISODateTime (ISODateTime(..))
-import Apie.Internal.Log (Log(..), HasLog(..), LogError(..), appendLog, readLog, iterateLog)
-import Apie.Internal.Store (Store(..), HasStore(..), Hash, fixPermissions)
+import Apie.Internal.Log (Log(..), HasLog(..), LogError(..), appendLog, readLog, iterateLog, fixPermissions)
+import Apie.Internal.Store (Store(..), HasStore(..), Hash)
 import Apie.Internal.User (User(..))
 import Apie.Internal.Utils (okResponse, errorResponse, jsonHeaders)
 
 
 data EventLog = EventLog
-    { eventLogPath :: FilePath
+    { eventLogPath     :: FilePath
     , eventLogFileMode :: FileMode
     , eventLogDirMode  :: FileMode
     }
@@ -70,14 +82,16 @@ instance HasLog EventLog where
     getLog x = Log (getStore x) ".json"
 
 
-data Event = Event
+type Event = Event' Value
+
+data Event' a = Event'
     { eventId   :: !UUID.UUID
     , eventType :: !T.Text
-    , body      :: !Value
+    , body      :: !a
     , createdBy :: !T.Text
     , createdAt :: !UTCTime
     , hash      :: Maybe Hash
-    }
+    } deriving (Eq, Ord, Show, Functor)
 
 instance ToJSON Event where
     toJSON e = object
@@ -90,7 +104,7 @@ instance ToJSON Event where
         ]
 
 instance FromJSON Event where
-    parseJSON = withObject "stored event" $ \v -> Event
+    parseJSON = withObject "stored event" $ \v -> Event'
         <$> v .:  "eventId"
         <*> v .:  "eventType"
         <*> v .:  "body"
@@ -117,6 +131,30 @@ defaultEventLog = EventLog
     , eventLogDirMode = fromJust (fromSymbolicRep "rwxr-x---")
     }
 
+iterateEvents :: HasEventLog env
+    => Maybe Hash
+    -> Maybe Hash
+    -> RIO env (Maybe [Event])
+iterateEvents hashFrom hashTo = do
+    el <- asks getEventLog
+    (hs, bs) <- unzip <$> runRIO el (iterateLog hashFrom hashTo)
+    case traverse decodeStrict bs of
+        Just events ->
+            pure (Just ((\(h, e) -> e { hash=Just h}) <$> zip hs events))
+        Nothing -> pure Nothing
+
+appendEvent :: HasEventLog env
+    => HasAuth env
+    => Maybe Hash
+    -> NewEvent
+    -> RIO env (Either LogError Event)
+appendEvent expected newEvent = do
+    event <- mkEvent newEvent
+    el <- asks getEventLog
+    hash <- runRIO el (appendLog expected (encode event))
+    case hash of
+        Right hash' -> pure (Right (event { hash = Just (show hash') }))
+        Left err -> pure (Left err)
 
 -- TODO return error when UUID is invalid
 -- TODO validate eventType
@@ -125,13 +163,14 @@ mkEvent NewEvent { newEventId, newEventType, newBody } = do
     eventId <- maybe (liftIO UUID.nextRandom) pure newEventId -- >>= UUID.fromText)
     createdBy <- asks (email . user . getAuth)
     createdAt <- liftIO getCurrentTime
-    pure $ Event
+    pure $ Event'
         { eventId
         , eventType=newEventType
         , body=newBody
         , createdBy
         , createdAt
-        , hash=Nothing }
+        , hash=Nothing
+        }
 
 httpPutEvent :: (HasAuth env, HasEventLog env) => Request -> RIO env Response
 httpPutEvent req = do
@@ -157,7 +196,7 @@ httpGetEvent _req hash = do
     case bs of
         Just bs' ->
             case decodeStrict bs' of
-                Just event -> pure (responseWithETag hash (event { hash=Just hash }))
+                Just (event :: Event) -> pure (responseWithETag hash (event { hash=Just hash }))
                 Nothing -> pure (errorResponse status400 "Event JSON malformed.")
         Nothing ->
             pure (errorResponse status404 "Event not found.")
@@ -174,7 +213,7 @@ httpGetEvents req = do
     if lastHash /= (toString <$> getHeader req hIfNoneMatch)
     then
         case traverse decodeStrict bs of
-            Just events -> do
+            Just (events :: [Event]) -> do
                 let events' = (\(h, e) -> e { hash=Just h}) <$> zip hs events
                 case lastHash of
                     Just h -> pure (responseWithETag h events')

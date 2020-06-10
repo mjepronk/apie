@@ -5,7 +5,6 @@ where
 
 import RIO hiding (lookup)
 import qualified RIO.ByteString as B
-import RIO.FilePath (FilePath)
 import Apie.Internal.Auth (Auth)
 import Apie.Internal.Env (Env(..))
 import Apie.ContentStore (defaultContentStore)

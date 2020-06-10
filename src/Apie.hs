@@ -1,34 +1,32 @@
 module Apie
-    ( app
+    ( User(..)
+    , Auth(..)
+    , Env(..)
+    , parseConfig
+    , mkApp
+    , app
     )
 where
 
-import RIO hiding (log)
-import RIO.Partial (fromJust)
-import Network.Wai
-import Network.HTTP.Types
-import qualified RIO.Text as T
+import RIO
 import qualified RIO.ByteString.Lazy as LB
+import qualified RIO.Text as T
+import Network.HTTP.Types
+import Network.Wai
 
-import Apie.ContentStore (httpPutFile, httpGetFile, httpDeleteFile, httpVerifyStore)
-import Apie.EventLog (httpPutEvent, httpGetEvent, httpGetEvents, httpGetEventsHead, httpVerifyLog)
-import Apie.Link (httpPutLink)
+import Apie.App (mkApp)
+import Apie.ContentStore (httpDeleteFile, httpGetFile, httpPutFile, httpVerifyStore)
+import Apie.EventLog (httpGetEvent, httpGetEvents, httpGetEventsHead, httpPutEvent, httpVerifyLog)
 import Apie.Info (httpGetInfo)
-import Apie.User (httpUpdateUser)
-import Apie.Internal.Auth (authenticateUser, authenticateResponse)
-import Apie.Internal.Env (Env)
+import Apie.Internal.Auth (Auth(..))
 import Apie.Internal.Config (parseConfig)
-import Apie.Internal.Utils (badRequest, plainHeaders, notFound, version)
+import Apie.Internal.Env (Env(..))
+import Apie.Internal.User (User(..))
+import Apie.Internal.Utils (badRequest, notFound, plainHeaders, version)
+import Apie.User (httpUpdateUser)
 
 app :: Application
-app req send = do
-    a <- authenticateUser req
-    case a of
-        Just auth -> do
-            env <- fromJust <$> parseConfig auth
-            send =<< runRIO env (router req)
-        Nothing ->
-            send authenticateResponse
+app = mkApp router
 
 router :: Request -> RIO Env Response
 router req =
@@ -60,11 +58,6 @@ router req =
                 "GET"    -> httpGetFile req (T.unpack hashOrFilename)
                 "DELETE" -> httpDeleteFile req (T.unpack hashOrFilename)
                 _        -> pure badRequest
-        ["links"] ->
-            case requestMethod req of
-                "PUT"  -> httpPutLink req
-                "POST" -> httpPutLink req
-                _      -> pure badRequest
         ["info"] ->
             case requestMethod req of
                 "GET" -> httpGetInfo req

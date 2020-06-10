@@ -12,7 +12,6 @@ import RIO
 import qualified RIO.Text as T
 import RIO.Directory (doesFileExist)
 import RIO.List (find)
-import RIO.ByteString (ByteString)
 import Crypto.KDF.BCrypt (hashPassword, validatePassword)
 
 data User a = User
@@ -98,7 +97,7 @@ getUsers = do
         case result of
             Just users -> pure users
             Nothing -> throwM PasswdFileCorrupted
-    else pure []
+    else fail "No passwd file found."
   where
     decodeUser :: T.Text -> Maybe (User ByteString)
     decodeUser line =

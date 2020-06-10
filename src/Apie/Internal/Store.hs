@@ -16,13 +16,11 @@ module Apie.Internal.Store
     )
 where
 
-import Control.Monad (when, filterM)
 import Crypto.Hash (Digest, HashAlgorithm, SHA256)
 import Crypto.Hash.IO (hashMutableInit, hashMutableUpdate, hashMutableFinalize)
 import RIO
 import RIO.Directory (createDirectoryIfMissing, listDirectory, doesFileExist,
     doesDirectoryExist, removeDirectory, removeFile, renameFile)
-import RIO.File (withBinaryFile)
 import RIO.FilePath ((</>), takeDirectory, makeRelative)
 import qualified RIO.ByteString as B
 import qualified RIO.ByteString.Lazy as LB

@@ -65,10 +65,6 @@ class HasContentStore env where
 instance HasContentStore ContentStore where
     getContentStore = id
 
-data ContentStoreError = FileDoesNotExists
-
-instance Show ContentStoreError where
-    show FileDoesNotExists = "File does not exist in content store."
 
 defaultContentStore :: ContentStore
 defaultContentStore = ContentStore
@@ -100,7 +96,7 @@ httpGetFile _req hash = do
     fp <- runRIO cs (getFilePath hash)
     case fp of
         Just fp' -> pure $ responseFile status200 [] fp' Nothing
-        Nothing  -> pure $ errorResponse status404 "File does not exists."
+        Nothing  -> pure $ errorResponse status404 "File does not exist."
 
 httpDeleteFile :: HasContentStore env => Request -> Hash -> RIO env Response
 httpDeleteFile _req hash = do

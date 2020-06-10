@@ -4,3 +4,4 @@ media/
 cgi-bin/
 passwd/
 *~
+dist-newstyle/

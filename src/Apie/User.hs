@@ -9,7 +9,6 @@ import Apie.Internal.User (User(..), updateUser)
 import Apie.Internal.Auth (HasAuth, getAuth, user)
 import Apie.Internal.Utils (okResponse, errorResponse)
 import Data.Aeson (FromJSON(..), Value(..), (.:?), (.=), decode, object, withObject)
-import Data.Maybe (fromMaybe)
 import Network.HTTP.Types (status400)
 import Network.Wai (Request, Response, lazyRequestBody)
 
