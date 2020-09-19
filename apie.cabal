@@ -1,6 +1,6 @@
 cabal-version: 1.12
 name:           apie
-version:        0.1.0.7
+version:        0.1.0.8
 description:    Please see the README on GitHub at <https://github.com/mjepronk/apie#readme>
 homepage:       https://github.com/mjepronk/apie#readme
 bug-reports:    https://github.com/mjepronk/apie/issues
@@ -23,8 +23,14 @@ library
       Apie
     , Apie.ContentStore
     , Apie.EventLog
+    , Apie.HKD
+    , Apie.Diff
   other-modules:
       Paths_apie
+    , Apie.Diff.GDiffable
+    , Apie.Diff.GParseJSON
+    , Apie.Diff.GToJSON
+    , Apie.Diff.Types
     , Apie.Internal.Auth
     , Apie.Internal.Config
     , Apie.Internal.Env
@@ -48,6 +54,7 @@ library
     , http-types
     , unix
     , uuid
+    , unordered-containers
     , wai
     , wai-extra
   default-extensions:
@@ -108,11 +115,23 @@ test-suite apie-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Paths_cms_backend
+      Paths_apie
+    , DiffSpec
   hs-source-dirs:
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
     , apie
+    , hspec
+    , rio
+    , aeson
+    , unordered-containers
+    , uuid
+  default-extensions:
+      NoImplicitPrelude
+    , NamedFieldPuns
+    , OverloadedStrings
+    , OverloadedLists
+    , TupleSections
   default-language: Haskell2010

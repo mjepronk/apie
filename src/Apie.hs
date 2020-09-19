@@ -22,7 +22,7 @@ import Apie.Internal.Auth (Auth(..))
 import Apie.Internal.Config (parseConfig)
 import Apie.Internal.Env (Env(..))
 import Apie.Internal.User (User(..))
-import Apie.Internal.Utils (badRequest, notFound, plainHeaders, version)
+import Apie.Internal.Utils (badRequest, notFound, errorResponse, plainHeaders, version)
 import Apie.User (httpUpdateUser)
 
 app :: Application
@@ -67,6 +67,8 @@ router req =
                 "POST" -> httpUpdateUser req
                 _      -> pure badRequest
         _ -> pure notFound
+  `catch` \e -> pure $ errorResponse status500
+    ("Unexpected exception: " <> T.pack (show (e :: IOException)))
 
 home :: Request -> Response
 home _req = responseLBS status200 plainHeaders $
